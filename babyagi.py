@@ -389,11 +389,10 @@ def openai_call(
                     n=1,
                     stop=None,
                 )
-                import json
                 if response.choices[0].message.content:
-                    return response.choices[0].message.content.strip()
+                    return response.choices[0].message.content
                 else:
-                    return json.dumps(response.choices[0].message.tool_calls)
+                    return response.choices[0].message.tool_calls[0]
         except openai.error.RateLimitError:
             print(
                 "   *** The OpenAI API rate limit has been exceeded. Waiting 10 seconds and trying again. ***"
@@ -432,19 +431,19 @@ SANDBOX_DIR = "/Users/aidand/dev/babyagi/sandbox"
 if not os.path.exists(SANDBOX_DIR):
     os.makedirs(SANDBOX_DIR)
 
-def handle_tool_call(tool_calls):
+def handle_tool_call(tool_call):
     def create_file(path, content):
         with open(os.path.join(SANDBOX_DIR, path), "w") as f:
             f.write(content)
         print(f"Created file {os.path.join(SANDBOX_DIR, path)}")
 
-    for tool_call in tool_calls:
-        if tool_call.function.name == "create_file":
-            function = tool_call.function
-            arguments = json.loads(function.arguments)
-            create_file(arguments["path"], arguments["content"])
-        else:
-            raise ValueError(f"Unknown tool call: {tool_call.function.name}")
+    if tool_call.function.name == "create_file":
+        function = tool_call.function
+        arguments = json.loads(function.arguments)
+        create_file(arguments["path"], arguments["content"])
+        return "File created: " + arguments["path"] + "\nWith content: " + arguments["content"]
+    else:
+        raise f"Unknown tool call: {tool_call.function.name}"
 
 
 def task_creation_agent(
@@ -471,7 +470,7 @@ Return all the new tasks, with one task per line in your response. The result mu
 The number of each entry must be followed by a period.
 Do not include any headers before your numbered list. Do not follow your numbered list with any other output."""
 
-    print(f'\n************** TASK CREATION AGENT PROMPT *************\n{prompt}\n')
+    # print(f'\n************** TASK CREATION AGENT PROMPT *************\n{prompt}\n')
     response = openai_call(prompt, max_tokens=2000)
     print(f'\n************* TASK CREATION AGENT RESPONSE ************\n{response}\n')
     new_tasks = response.split('\n')
@@ -506,7 +505,7 @@ Do not remove any tasks. Return the result as a numbered list in the format:
 The entries are consecutively numbered, starting with 1. The number of each entry must be followed by a period.
 Do not include any headers before your numbered list. Do not follow your numbered list with any other output."""
 
-    print(f'\n************** TASK PRIORITIZATION AGENT PROMPT *************\n{prompt}\n')
+    # print(f'\n************** TASK PRIORITIZATION AGENT PROMPT *************\n{prompt}\n')
     response = openai_call(prompt, max_tokens=2000)
     print(f'\n************* TASK PRIORITIZATION AGENT RESPONSE ************\n{response}\n')
     new_tasks = response.split("\n") if "\n" in response else [response]
@@ -545,7 +544,11 @@ def execution_agent(objective: str, task: str) -> str:
         prompt += 'Take into account these previously completed tasks:' + '\n'.join(context)\
 
     prompt += f'\nYour task: {task}\nResponse:'
-    return openai_call(prompt, max_tokens=2000)
+    response = openai_call(prompt, max_tokens=2000)
+    if isinstance(response, str):
+        return response
+    else:
+        return handle_tool_call(response)
 
 
 # Get the top n completed tasks for the objective
