@@ -80,8 +80,11 @@ content and retrieves all <p> tags, extracting their text content and saving it 
 a given URL and subsequently extract the <p> tags' content. The output should be saved to a output.txt file using \
 utf-8 as encoding.
 """
+# INITIAL_TASK = """
+# Create a Downloader class in a file named 'downloader.py'
+# """
 INITIAL_TASK = """
-Create a Downloader class in a file named 'downloader.py'
+Create a step by step plan to complete the objective.
 """
 
 # Model configuration
