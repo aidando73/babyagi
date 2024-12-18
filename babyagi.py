@@ -493,10 +493,14 @@ def prioritization_agent():
     task_names = tasks_storage.get_task_names()
     next_task_id = tasks_storage.next_task_id()
 
+    context = context_agent(query=OBJECTIVE, top_results_num=5)
+    completed_tasks = 'Take into account these previously completed tasks:' + '\n'.join(context)
+
     prompt = f"""
 You are tasked with cleaning the format and re-prioritizing the following tasks: {', '.join(task_names)}.
 Consider the ultimate objective of your team: {OBJECTIVE}.
 Tasks should be sorted from highest to lowest priority. 
+{completed_tasks}
 Higher-priority tasks are those that act as pre-requisites or are more essential for meeting the objective.
 Do not remove any tasks. Return the result as a numbered list in the format:
 
