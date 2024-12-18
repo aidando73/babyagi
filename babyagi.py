@@ -20,6 +20,7 @@ import re
 from chromadb.config import Settings
 client = chromadb.Client(Settings(anonymized_telemetry=False))
 
+LOOP_LIMIT = 5
 
 # Engine configuration
 
@@ -425,6 +426,25 @@ def openai_call(
             time.sleep(10)  # Wait 10 seconds and try again
         else:
             break
+import json
+
+SANDBOX_DIR = "/Users/aidand/dev/babyagi/sandbox"
+if not os.path.exists(SANDBOX_DIR):
+    os.makedirs(SANDBOX_DIR)
+
+def handle_tool_call(tool_calls):
+    def create_file(path, content):
+        with open(os.path.join(SANDBOX_DIR, path), "w") as f:
+            f.write(content)
+        print(f"Created file {os.path.join(SANDBOX_DIR, path)}")
+
+    for tool_call in tool_calls:
+        if tool_call.function.name == "create_file":
+            function = tool_call.function
+            arguments = json.loads(function.arguments)
+            create_file(arguments["path"], arguments["content"])
+        else:
+            raise ValueError(f"Unknown tool call: {tool_call.function.name}")
 
 
 def task_creation_agent(
@@ -557,61 +577,57 @@ if not JOIN_EXISTING_OBJECTIVE:
 
 
 def main():
-    loop = True
-    while loop:
-        # As long as there are tasks in the storage...
-        if not tasks_storage.is_empty():
-            # Print the task list
-            print("\033[95m\033[1m" + "\n*****TASK LIST*****\n" + "\033[0m\033[0m")
-            for t in tasks_storage.get_task_names():
-                print(" • " + str(t))
+    loop_count = 0
+    # As long as there are tasks in the storage...
+    while loop_count < LOOP_LIMIT and not tasks_storage.is_empty():
+        # Print the task list
+        print("\033[95m\033[1m" + "\n*****TASK LIST*****\n" + "\033[0m\033[0m")
+        for t in tasks_storage.get_task_names():
+            print(" • " + str(t))
 
-            # Step 1: Pull the first incomplete task
-            task = tasks_storage.popleft()
-            print("\033[92m\033[1m" + "\n*****NEXT TASK*****\n" + "\033[0m\033[0m")
-            print(str(task["task_name"]))
+        # Step 1: Pull the first incomplete task
+        task = tasks_storage.popleft()
+        print("\033[92m\033[1m" + "\n*****NEXT TASK*****\n" + "\033[0m\033[0m")
+        print(str(task["task_name"]))
 
-            # Send to execution function to complete the task based on the context
-            result = execution_agent(OBJECTIVE, str(task["task_name"]))
-            print("\033[93m\033[1m" + "\n*****TASK RESULT*****\n" + "\033[0m\033[0m")
-            print(result)
+        # Send to execution function to complete the task based on the context
+        result = execution_agent(OBJECTIVE, str(task["task_name"]))
+        print("\033[93m\033[1m" + "\n*****TASK RESULT*****\n" + "\033[0m\033[0m")
+        print(result)
 
-            # Step 2: Enrich result and store in the results storage
-            # This is where you should enrich the result if needed
-            enriched_result = {
-                "data": result
-            }
-            # extract the actual result from the dictionary
-            # since we don't do enrichment currently
-            # vector = enriched_result["data"]  
+        # Step 2: Enrich result and store in the results storage
+        # This is where you should enrich the result if needed
+        enriched_result = {
+            "data": result
+        }
+        # extract the actual result from the dictionary
+        # since we don't do enrichment currently
+        # vector = enriched_result["data"]  
 
-            result_id = f"result_{task['task_id']}"
+        result_id = f"result_{task['task_id']}"
 
-            results_storage.add(task, result, result_id)
+        results_storage.add(task, result, result_id)
 
-            # Step 3: Create new tasks and re-prioritize task list
-            # only the main instance in cooperative mode does that
-            new_tasks = task_creation_agent(
-                OBJECTIVE,
-                enriched_result,
-                task["task_name"],
-                tasks_storage.get_task_names(),
-            )
+        # Step 3: Create new tasks and re-prioritize task list
+        # only the main instance in cooperative mode does that
+        new_tasks = task_creation_agent(
+            OBJECTIVE,
+            enriched_result,
+            task["task_name"],
+            tasks_storage.get_task_names(),
+        )
 
-            print('Adding new tasks to task_storage')
-            for new_task in new_tasks:
-                new_task.update({"task_id": tasks_storage.next_task_id()})
-                print(str(new_task))
-                tasks_storage.append(new_task)
+        print('Adding new tasks to task_storage')
+        for new_task in new_tasks:
+            new_task.update({"task_id": tasks_storage.next_task_id()})
+            print(str(new_task))
+            tasks_storage.append(new_task)
 
-            if not JOIN_EXISTING_OBJECTIVE: prioritization_agent()
+        if not JOIN_EXISTING_OBJECTIVE: prioritization_agent()
 
         # Sleep a bit before checking the task list again
-            time.sleep(5)
-        else:
-            print('Done.')
-            loop = False
-
+        time.sleep(5)
+        loop_count += 1
 
 if __name__ == "__main__":
     main()
