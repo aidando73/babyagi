@@ -40,6 +40,30 @@ INSTANCE_NAME = os.getenv("INSTANCE_NAME", os.getenv("BABY_NAME", "BabyAGI"))
 COOPERATIVE_MODE = "none"
 JOIN_EXISTING_OBJECTIVE = False
 
+TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "create_file",
+            "description": "Create a file with the given name and content",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "The relative path to the file to create",
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "The content of the file to create",
+                    },
+                },
+                "required": ["path", "content"],
+            },
+        },
+    }
+]
+
 # Goal configuration
 OBJECTIVE = """
 Create a Python program called 'HTMLParser' with two separate classes in different files to download \
@@ -347,23 +371,11 @@ def openai_call(
                 return str(result['choices'][0]['text'].strip())
             elif model.lower().startswith("human"):
                 return user_input_await(prompt)
-            elif not model.lower().startswith("gpt-"):
-                # Use completion API
-                response = openai.Completion.create(
-                    engine=model,
-                    prompt=prompt,
-                    temperature=temperature,
-                    max_tokens=max_tokens,
-                    top_p=1,
-                    frequency_penalty=0,
-                    presence_penalty=0,
-                )
-                return response.choices[0].text.strip()
             else:
-                # Use 4000 instead of the real limit (4097) to give a bit of wiggle room for the encoding of roles.
+                # Use 127,000 instead of the real limit (128,000) to give a bit of wiggle room for the encoding of roles.
                 # TODO: different limits for different models.
 
-                trimmed_prompt = limit_tokens_from_string(prompt, model, 4000 - max_tokens)
+                trimmed_prompt = limit_tokens_from_string(prompt, model, 127_000)
 
                 # Use chat completion API
                 messages = [{"role": "system", "content": trimmed_prompt}]
@@ -372,10 +384,15 @@ def openai_call(
                     messages=messages,
                     temperature=temperature,
                     max_tokens=max_tokens,
+                    tools=TOOLS,
                     n=1,
                     stop=None,
                 )
-                return response.choices[0].message.content.strip()
+                import json
+                if response.choices[0].message.content:
+                    return response.choices[0].message.content.strip()
+                else:
+                    return json.dumps(response.choices[0].message.tool_calls)
         except openai.error.RateLimitError:
             print(
                 "   *** The OpenAI API rate limit has been exceeded. Waiting 10 seconds and trying again. ***"
