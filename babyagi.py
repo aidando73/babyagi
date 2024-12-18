@@ -20,7 +20,7 @@ import re
 from chromadb.config import Settings
 client = chromadb.Client(Settings(anonymized_telemetry=False))
 
-LOOP_LIMIT = 5
+LOOP_LIMIT = 10
 
 # Engine configuration
 
@@ -79,13 +79,17 @@ content and retrieves all <p> tags, extracting their text content and saving it 
 3- The two classes should work together in a main file named 'main.py' to download the HTML content from \
 a given URL and subsequently extract the <p> tags' content. The output should be saved to a output.txt file using \
 utf-8 as encoding.
+
+4- Also include a README.md file in the project root directory that describes the project, its structure, and how to run it.
+
+5- Also include a requirements.txt file in the project root directory that lists all the dependencies required to run the project.
+"""
+INITIAL_TASK = """
+Create a step by step plan to complete the objective.
 """
 # INITIAL_TASK = """
 # Create a Downloader class in a file named 'downloader.py'
 # """
-INITIAL_TASK = """
-Create a step by step plan to complete the objective.
-"""
 
 # Model configuration
 OPENAI_TEMPERATURE = float(os.getenv("OPENAI_TEMPERATURE", 0.0))
@@ -137,6 +141,7 @@ print(f"Name  : {INSTANCE_NAME}")
 print(f"Mode  : {'alone' if COOPERATIVE_MODE in ['n', 'none'] else 'local' if COOPERATIVE_MODE in ['l', 'local'] else 'distributed' if COOPERATIVE_MODE in ['d', 'distributed'] else 'undefined'}")
 print(f"LLM   : {LLM_MODEL}")
 
+completed_tasks = []
 
 # Check if we know what we are doing
 assert OBJECTIVE, "\033[91m\033[1m" + "OBJECTIVE environment variable is missing from .env" + "\033[0m\033[0m"
@@ -348,7 +353,6 @@ if COOPERATIVE_MODE in ['l', 'local']:
 elif COOPERATIVE_MODE in ['d', 'distributed']:
     pass
 
-completed_tasks = []
 
 def limit_tokens_from_string(string: str, model: str, limit: int) -> str:
     """Limits the string to a number of tokens (estimated)."""
@@ -496,14 +500,11 @@ def prioritization_agent():
     task_names = tasks_storage.get_task_names()
     next_task_id = tasks_storage.next_task_id()
 
-    context = context_agent(query=OBJECTIVE, top_results_num=5)
-    completed_tasks = 'Take into account these previously completed tasks:' + '\n'.join(context)
-
     prompt = f"""
 You are tasked with cleaning the format and re-prioritizing the following tasks: {', '.join(task_names)}.
 Consider the ultimate objective of your team: {OBJECTIVE}.
 Tasks should be sorted from highest to lowest priority. 
-{completed_tasks}
+Take into account these previously completed tasks: {json.dumps(completed_tasks)}. 
 Higher-priority tasks are those that act as pre-requisites or are more essential for meeting the objective.
 Do not remove any tasks. Return the result as a numbered list in the format:
 
@@ -514,7 +515,7 @@ The entries are consecutively numbered, starting with 1. The number of each entr
 Do not include any headers before your numbered list. Do not follow your numbered list with any other output."""
 
     # print(f'\n************** TASK PRIORITIZATION AGENT PROMPT *************\n{prompt}\n')
-    response = openai_call(prompt, max_tokens=2000)
+    response = openai_call(prompt)
     print(f'\n************* TASK PRIORITIZATION AGENT RESPONSE ************\n{response}\n')
     new_tasks = response.split("\n") if "\n" in response else [response]
     new_tasks_list = []
@@ -618,6 +619,10 @@ def main():
         result_id = f"result_{task['task_id']}"
 
         results_storage.add(task, result, result_id)
+        completed_tasks.append({
+            "task": task,
+            "result": result
+        })
 
         # Step 3: Create new tasks and re-prioritize task list
         # only the main instance in cooperative mode does that
