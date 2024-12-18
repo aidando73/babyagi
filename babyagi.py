@@ -41,8 +41,23 @@ COOPERATIVE_MODE = "none"
 JOIN_EXISTING_OBJECTIVE = False
 
 # Goal configuration
-OBJECTIVE = os.getenv("OBJECTIVE", "")
-INITIAL_TASK = os.getenv("INITIAL_TASK", os.getenv("FIRST_TASK", ""))
+OBJECTIVE = """
+Create a Python program called 'HTMLParser' with two separate classes in different files to download \
+and extract the content of <p> tags from a given URL. The project should be structured as follows:
+
+1- Create a 'Downloader' class in a file named 'downloader.py' that is responsible for downloading the HTML \
+content from the provided URL.
+
+2- Create a 'TagExtractor' class in a separate file named 'tag_extractor.py' that takes the downloaded HTML \
+content and retrieves all <p> tags, extracting their text content and saving it as plain text.
+
+3- The two classes should work together in a main file named 'main.py' to download the HTML content from \
+a given URL and subsequently extract the <p> tags' content. The output should be saved to a output.txt file using \
+utf-8 as encoding.
+"""
+INITIAL_TASK = """
+Create a Downloader class in a file named 'downloader.py'
+"""
 
 # Model configuration
 OPENAI_TEMPERATURE = float(os.getenv("OPENAI_TEMPERATURE", 0.0))
