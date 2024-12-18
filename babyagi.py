@@ -345,6 +345,7 @@ if COOPERATIVE_MODE in ['l', 'local']:
 elif COOPERATIVE_MODE in ['d', 'distributed']:
     pass
 
+completed_tasks = []
 
 def limit_tokens_from_string(string: str, model: str, limit: int) -> str:
     """Limits the string to a number of tokens (estimated)."""
